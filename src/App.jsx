@@ -144,6 +144,35 @@ const App = () => {
 const ResultPage = ({ data, index, birth }) => {
     const renderStars = (score) => "★".repeat(score) + "☆".repeat(5 - score);
 
+    // [공유하기 기능 업그레이드]
+    const handleShare = async () => {
+        // 공유될 텍스트 구성 (총평 요약 포함)
+        const shareTitle = '2026 병오년 정밀 신년운세';
+        const shareText = `[${data.name}] 2026년 나의 운세 결과:\n"${data.desc.substring(0, 45)}..."\n\n지금 바로 당신의 천명을 확인하세요!`;
+        const shareUrl = window.location.href;
+
+        if (navigator.share) {
+            // 1. 모바일 순정 공유 기능 (Web Share API)
+            try {
+                await navigator.share({
+                    title: shareTitle,
+                    text: shareText,
+                    url: shareUrl,
+                });
+            } catch (err) {
+                console.log('공유 취소 또는 에러:', err);
+            }
+        } else {
+            // 2. PC 또는 미지원 브라우저 (클립보드 복사)
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                alert('운세 링크가 클립보드에 복사되었습니다. 원하시는 곳에 붙여넣기(Ctrl+V) 하세요! 📤');
+            } catch (err) {
+                alert('공유하기가 지원되지 않는 환경입니다. 주소창의 링크를 복사해주세요.');
+            }
+        }
+    };
+
     return (
         <ResultContainer>
             <OrnamentTop src="/images/ornament_top.png" />
@@ -158,7 +187,7 @@ const ResultPage = ({ data, index, birth }) => {
                     <ZodiacImg src={`/images/zodiac_${index}.png`} alt={data.name} />
                 </ZodiacImageBox>
 
-                <SectionTitle>〔 2026년 총운 〕</SectionTitle>
+                <SectionTitleBox>〔 2026년 총운 〕</SectionTitleBox>
                 <SummaryText>{data.desc}</SummaryText>
 
                 <Divider />
@@ -170,7 +199,7 @@ const ResultPage = ({ data, index, birth }) => {
                 </LuckGrid>
 
                 <DetailBox>
-                    <SectionTitle>〔 상세 운명 분석 〕</SectionTitle>
+                    <SectionTitleBox>〔 상세 운명 분석 〕</SectionTitleBox>
                     <DetailText>{data.detail}</DetailText>
                 </DetailBox>
 
@@ -179,7 +208,7 @@ const ResultPage = ({ data, index, birth }) => {
                     <SecretText>{data.secret}</SecretText>
                 </SecretCard>
 
-                {/* 제휴 마케팅 섹션: 신의 한 수 */}
+                {/* 제휴 마케팅 섹션 */}
                 <AffiliateSection>
                     <AffiliateHeader>
                         <AffiliateLabel>신의 한 수</AffiliateLabel>
@@ -199,8 +228,10 @@ const ResultPage = ({ data, index, birth }) => {
             </MainCard>
 
             <ButtonGroup>
-                <ShareButton onClick={() => alert('운세 링크가 복사되었습니다.')}>결과 공유하기 📤</ShareButton>
-                <RestartButton onClick={() => window.location.reload()}>다른 운세 확인하기</RestartButton>
+                <ShareButton onClick={handleShare}>결과 공유하기 📤</ShareButton>
+                <RestartButton onClick={() => window.location.reload()}>
+                    ↻ 다른 운세 확인하기
+                </RestartButton>
             </ButtonGroup>
             <FooterText>© 2026 병오년 전통사주연구소</FooterText>
         </ResultContainer>
