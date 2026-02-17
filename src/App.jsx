@@ -144,32 +144,43 @@ const App = () => {
 const ResultPage = ({ data, index, birth }) => {
     const renderStars = (score) => "★".repeat(score) + "☆".repeat(5 - score);
 
-    // [공유하기 기능 업그레이드]
+    // [공유하기 기능 최적화 버전]
     const handleShare = async () => {
-        // 공유될 텍스트 구성 (총평 요약 포함)
+        // 공유될 메시지 구성
         const shareTitle = '2026 병오년 정밀 신년운세';
         const shareText = `[${data.name}] 2026년 나의 운세 결과:\n"${data.desc.substring(0, 45)}..."\n\n지금 바로 당신의 천명을 확인하세요!`;
         const shareUrl = window.location.href;
 
-        if (navigator.share) {
-            // 1. 모바일 순정 공유 기능 (Web Share API)
+        // 1. 모바일 기기이면서 공유 기능을 지원하는지 확인
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+        if (isMobile && navigator.share) {
             try {
+                // 모바일 환경에서 공유창 호출
                 await navigator.share({
                     title: shareTitle,
                     text: shareText,
                     url: shareUrl,
                 });
             } catch (err) {
-                console.log('공유 취소 또는 에러:', err);
+                // 사용자가 공유를 취소한 경우가 아니면 복사 기능으로 안내
+                if (err.name !== 'AbortError') {
+                    copyFallback(shareUrl);
+                }
             }
         } else {
-            // 2. PC 또는 미지원 브라우저 (클립보드 복사)
-            try {
-                await navigator.clipboard.writeText(shareUrl);
-                alert('운세 링크가 클립보드에 복사되었습니다. 원하시는 곳에 붙여넣기(Ctrl+V) 하세요! 📤');
-            } catch (err) {
-                alert('공유하기가 지원되지 않는 환경입니다. 주소창의 링크를 복사해주세요.');
-            }
+            // 2. PC 또는 미지원 환경일 경우 복사 기능 실행
+            copyFallback(shareUrl);
+        }
+    };
+
+    // [복사 기능 별도 분리]
+    const copyFallback = async (url) => {
+        try {
+            await navigator.clipboard.writeText(url);
+            alert('운세 링크가 클립보드에 복사되었습니다. 친구에게 붙여넣어 공유해보세요! 📤');
+        } catch (err) {
+            alert('주소창의 링크를 복사하여 공유해주세요.');
         }
     };
 
@@ -208,7 +219,6 @@ const ResultPage = ({ data, index, birth }) => {
                     <SecretText>{data.secret}</SecretText>
                 </SecretCard>
 
-                {/* 제휴 마케팅 섹션 */}
                 <AffiliateSection>
                     <AffiliateHeader>
                         <AffiliateLabel>신의 한 수</AffiliateLabel>
