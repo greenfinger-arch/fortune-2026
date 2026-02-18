@@ -57,13 +57,36 @@ const App = () => {
         setStep('input');
     };
 
+    /**
+     * [최적화 로직 1] 연도별 정밀 매칭 함수
+     */
+    const getDetailedResult = (year) => {
+        const zodiacIndex = year % 12;
+        const baseData = zodiacData[zodiacIndex];
+        const yearlyDetail = baseData.yearly && baseData.yearly[year];
+
+        if (yearlyDetail) {
+            // 특정 연도 데이터가 존재하면 해당 데이터로 덮어씌움
+            return {
+                ...baseData,
+                desc: yearlyDetail.desc || baseData.desc,
+                detail: yearlyDetail.detail || baseData.detail,
+                secret: yearlyDetail.secret || baseData.secret,
+                affiliate: yearlyDetail.affiliate || baseData.affiliate
+            };
+        }
+        return baseData; // 연도 데이터 없으면 기본띠 데이터 사용
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         if (sfxRef.current) sfxRef.current.play().catch(() => { });
 
-        const rem = parseInt(birthData.year) % 12;
+        const yearNum = parseInt(birthData.year);
+        const rem = yearNum % 12;
+
         setRemainder(rem);
-        setResult(zodiacData[rem]);
+        setResult(getDetailedResult(yearNum)); // 정밀 데이터 세팅
         setStep('loading');
 
         setTimeout(() => setStep('result'), 2800);
@@ -103,7 +126,7 @@ const App = () => {
                                     <Label>년(Year)</Label>
                                     <StyledSelect required onChange={(e) => setBirthData({ ...birthData, year: e.target.value })} defaultValue="">
                                         <option value="" disabled>-</option>
-                                        {Array.from({ length: 80 }, (_, i) => 2026 - i).map(y => <option key={y} value={y}>{y}</option>)}
+                                        {Array.from({ length: 90 }, (_, i) => 2026 - i).map(y => <option key={y} value={y}>{y}</option>)}
                                     </StyledSelect>
                                 </InputGroup>
                                 <InputGroup>
@@ -142,45 +165,33 @@ const App = () => {
 
 /* --- Result Page Component --- */
 const ResultPage = ({ data, index, birth }) => {
-    const renderStars = (score) => "★".repeat(score) + "☆".repeat(5 - score);
+    // [최적화 로직 2] 한국식 나이 계산
+    const koreanAge = 2026 - parseInt(birth.year) + 1;
 
-    // [공유하기 기능 최적화 버전]
+    const renderStars = (score) => "★".repeat(score || 3) + "☆".repeat(5 - (score || 3));
+
     const handleShare = async () => {
-        // 공유될 메시지 구성
         const shareTitle = '2026 병오년 정밀 신년운세';
-        const shareText = `[${data.name}] 2026년 나의 운세 결과:\n"${data.desc.substring(0, 45)}..."\n\n지금 바로 당신의 천명을 확인하세요!`;
+        const shareText = `[${birth.year}년생 ${data.name}] 2026년 나의 운세 결과:\n"${data.desc.substring(0, 45)}..."\n\n지금 바로 당신의 천명을 확인하세요!`;
         const shareUrl = window.location.href;
 
-        // 1. 모바일 기기이면서 공유 기능을 지원하는지 확인
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-        if (isMobile && navigator.share) {
+        if (navigator.share) {
             try {
-                // 모바일 환경에서 공유창 호출
-                await navigator.share({
-                    title: shareTitle,
-                    text: shareText,
-                    url: shareUrl,
-                });
+                await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
             } catch (err) {
-                // 사용자가 공유를 취소한 경우가 아니면 복사 기능으로 안내
-                if (err.name !== 'AbortError') {
-                    copyFallback(shareUrl);
-                }
+                if (err.name !== 'AbortError') copyFallback(shareUrl);
             }
         } else {
-            // 2. PC 또는 미지원 환경일 경우 복사 기능 실행
             copyFallback(shareUrl);
         }
     };
 
-    // [복사 기능 별도 분리]
     const copyFallback = async (url) => {
         try {
             await navigator.clipboard.writeText(url);
-            alert('운세 링크가 클립보드에 복사되었습니다. 친구에게 붙여넣어 공유해보세요! 📤');
+            alert('운세 링크가 클립보드에 복사되었습니다. 📤');
         } catch (err) {
-            alert('주소창의 링크를 복사하여 공유해주세요.');
+            alert('링크를 복사하여 공유해주세요.');
         }
     };
 
@@ -188,49 +199,57 @@ const ResultPage = ({ data, index, birth }) => {
         <ResultContainer>
             <OrnamentTop src="/images/ornament_top.png" />
 
+            {/* [최적화 로직 3] 동적 UI - 나이 강조 및 데이터 기반 컬러 적용 */}
             <ResultHeader>
-                <ZodiacBadge color={data.color}>{data.name}</ZodiacBadge>
-                <ResultTitle>{birth.year}년생 당신을 위한 천문 기록</ResultTitle>
+                <ZodiacBadge style={{ backgroundColor: data.color }}>{data.name}</ZodiacBadge>
+                <ResultTitle>
+                    {birth.year}년생 <AgeHighlight color={data.color}>({koreanAge}세)</AgeHighlight> 천문 기록
+                </ResultTitle>
             </ResultHeader>
 
-            <MainCard>
+            <MainCard style={{ borderTop: `4px solid ${data.color}` }}>
                 <ZodiacImageBox>
                     <ZodiacImg src={`/images/zodiac_${index}.png`} alt={data.name} />
                 </ZodiacImageBox>
 
-                <SectionTitleBox>〔 2026년 총운 〕</SectionTitleBox>
+                <SectionTitleBox color={data.color}>〔 2026년 총운 〕</SectionTitleBox>
                 <SummaryText>{data.desc}</SummaryText>
 
                 <Divider />
 
                 <LuckGrid>
-                    <LuckItem><LuckLabel>재물</LuckLabel><Stars color="#d4af37">{renderStars(data.luck.wealth)}</Stars></LuckItem>
-                    <LuckItem><LuckLabel>애정</LuckLabel><Stars color="#a64037">{renderStars(data.luck.love)}</Stars></LuckItem>
-                    <LuckItem><LuckLabel>건강</LuckLabel><Stars color="#5a7d6e">{renderStars(data.luck.health)}</Stars></LuckItem>
+                    {/* 행운 점수 데이터가 없을 경우 기본 3점 처리 */}
+                    <LuckItem><LuckLabel>재물</LuckLabel><Stars color="#d4af37">{renderStars(data.luck?.wealth)}</Stars></LuckItem>
+                    <LuckItem><LuckLabel>애정</LuckLabel><Stars color="#a64037">{renderStars(data.luck?.love)}</Stars></LuckItem>
+                    <LuckItem><LuckLabel>건강</LuckLabel><Stars color="#5a7d6e">{renderStars(data.luck?.health)}</Stars></LuckItem>
                 </LuckGrid>
 
                 <DetailBox>
-                    <SectionTitleBox>〔 상세 운명 분석 〕</SectionTitleBox>
+                    <SectionTitleBox color={data.color}>〔 {koreanAge}세 맞춤 상세 분석 〕</SectionTitleBox>
                     <DetailText>{data.detail}</DetailText>
                 </DetailBox>
 
-                <SecretCard>
-                    <SecretTitle>✨ 신년 비책</SecretTitle>
+                <SecretCard style={{ borderLeft: `5px solid ${data.color}` }}>
+                    <SecretTitle color={data.color}>✨ {data.name} 신년 비책</SecretTitle>
                     <SecretText>{data.secret}</SecretText>
                 </SecretCard>
 
+                {/* [최적화 로직 4] 수익화 연동 - 연도별 아이템 노출 */}
                 <AffiliateSection>
                     <AffiliateHeader>
-                        <AffiliateLabel>신의 한 수</AffiliateLabel>
-                        <AffiliateTitle>운을 틔워줄 행운의 수호템</AffiliateTitle>
+                        <AffiliateLabel style={{ backgroundColor: data.color }}>신의 한 수</AffiliateLabel>
+                        <AffiliateTitle>운을 틔워줄 {data.name} 수호템</AffiliateTitle>
                     </AffiliateHeader>
                     <ItemBox>
                         <ItemImage src={data.affiliate.img} alt={data.affiliate.name} />
                         <ItemInfo>
                             <ItemName>{data.affiliate.name}</ItemName>
                             <ItemReason>{data.affiliate.reason}</ItemReason>
-                            <BuyButton onClick={() => window.open(data.affiliate.link, '_blank')}>
-                                수호템 확인하기 ➔
+                            <BuyButton
+                                style={{ backgroundColor: data.color }}
+                                onClick={() => window.open(data.affiliate.link, '_blank')}
+                            >
+                                행운의 수호템 확인 ➔
                             </BuyButton>
                         </ItemInfo>
                     </ItemBox>
@@ -248,65 +267,211 @@ const ResultPage = ({ data, index, birth }) => {
     );
 };
 
-/* --- Styled Components --- */
-const Container = styled.div` max-width: 500px; margin: 0 auto; min-height: 100vh; display: flex; align-items: center; padding: 20px; box-sizing: border-box; `;
-const Section = styled.div` width: 100%; background: rgba(255,255,255,0.96); padding: 50px 30px; border: 1px solid #dcd7c9; text-align: center; animation: ${fadeIn} 0.8s ease-out; `;
-const MainTitle = styled.h1` font-size: 26px; color: #1a2a44; margin: 20px 0; `;
-const SubTitle = styled.p` color: #666; font-size: 15px; margin-bottom: 40px; line-height: 1.6; `;
-const StartButton = styled.button` background: #a64037; color: white; border: none; padding: 18px 50px; font-size: 18px; cursor: pointer; border-radius: 2px; font-weight: bold; transition: 0.3s; &:hover { background: #8e352e; } `;
-const YearBadge = styled.span` color: #a64037; font-weight: bold; border-bottom: 2px solid #a64037; padding-bottom: 5px; letter-spacing: 2px; `;
-const MainLogo = styled.img` width: 120px; margin: 20px auto; display: block; `;
-const Title = styled.h2` font-size: 24px; color: #1a2a44; margin-bottom: 10px; `;
-const Instruction = styled.p` font-size: 15px; color: #888; margin-bottom: 35px; `;
-const Form = styled.form` width: 100%; `;
-const GridInputWrapper = styled.div` display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 40px; `;
-const InputGroup = styled.div` display: flex; flex-direction: column; border-bottom: 2px solid #dcd7c9; `;
-const Label = styled.span` font-size: 11px; color: #a64037; font-weight: bold; margin-bottom: 5px; `;
-const StyledSelect = styled.select` border: none; font-size: 18px; padding: 10px 0; text-align: center; outline: none; background: transparent; cursor: pointer; appearance: none; `;
-const SubmitButton = styled.button` width: 100%; background: #1a2a44; color: white; border: none; padding: 20px; font-size: 17px; cursor: pointer; font-weight: bold; `;
-const LoadingText = styled.p` font-size: 17px; color: #1a2a44; margin: 30px 0; line-height: 1.6; `;
-const SpinningOrnament = styled.img` width: 70px; animation: ${rotate} 6s linear infinite; `;
-const ProgressBar = styled.div` width: 100%; height: 4px; background: #eee; border-radius: 10px; overflow: hidden; `;
-const ProgressFill = styled.div` height: 100%; background: #a64037; animation: 2.8s linear forwards; `;
-const SoundToggle = styled.button` position: fixed; top: 20px; right: 20px; background: rgba(255,255,255,0.9); border: 1px solid #dcd7c9; padding: 7px 15px; border-radius: 30px; font-size: 12px; cursor: pointer; z-index: 1000; `;
+/* --- Styled Components (기존 보존 및 최적화 추가) --- */
 
-/* Result Page Styles */
-const ResultContainer = styled.div` width: 100%; animation: ${fadeIn} 1s ease-out; `;
-const OrnamentTop = styled.img` width: 100%; max-width: 450px; margin: -10px auto 25px; display: block; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); `;
+const Container = styled.div`
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  animation: ${fadeIn} 0.8s ease-out;
+`;
+
+const Section = styled.div`
+  text-align: center;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 40px 30px;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  border: 2px solid #e0d8c3;
+`;
+
+const YearBadge = styled.div`
+  display: inline-block;
+  background: #a64037;
+  color: #fff;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 20px;
+`;
+
+const MainLogo = styled.img`
+  width: 120px;
+  margin-bottom: 20px;
+`;
+
+const MainTitle = styled.h1`
+  font-size: 1.8rem;
+  color: #2c2c2c;
+  margin-bottom: 10px;
+`;
+
+const SubTitle = styled.p`
+  font-size: 1rem;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 30px;
+`;
+
+const StartButton = styled.button`
+  background: #a64037;
+  color: white;
+  border: none;
+  padding: 15px 40px;
+  font-size: 1.1rem;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: 0.3s;
+  animation: ${pulse} 2s infinite;
+  &:hover { background: #8e352e; }
+`;
+
+const Title = styled.h2` font-size: 1.5rem; margin-bottom: 15px; `;
+const Instruction = styled.p` color: #666; margin-bottom: 30px; line-height: 1.5; `;
+
+const Form = styled.form` display: flex; flex-direction: column; gap: 20px; `;
+
+const GridInputWrapper = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+`;
+
+const InputGroup = styled.div` display: flex; flex-direction: column; text-align: left; `;
+const Label = styled.label` font-size: 0.8rem; color: #888; margin-bottom: 5px; margin-left: 5px; `;
+
+const StyledSelect = styled.select`
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  background: #fff;
+  font-size: 1rem;
+`;
+
+const SubmitButton = styled.button`
+  background: #333;
+  color: white;
+  border: none;
+  padding: 15px;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-top: 10px;
+`;
+
+const SpinningOrnament = styled.img`
+  width: 80px;
+  animation: ${rotate} 3s linear infinite;
+  margin-bottom: 20px;
+`;
+
+const LoadingText = styled.p` font-size: 1.1rem; color: #555; line-height: 1.6; `;
+
+const ProgressBar = styled.div`
+  width: 100%;
+  height: 6px;
+  background: #eee;
+  border-radius: 3px;
+  margin-top: 30px;
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div`
+  width: 100%;
+  height: 100%;
+  background: #a64037;
+  animation: moveProgress 2.8s linear forwards;
+  @keyframes moveProgress { from { width: 0; } to { width: 100%; } }
+`;
+
+/* --- Result Page Styled Components --- */
+const ResultContainer = styled.div` animation: ${fadeIn} 1s ease-out; `;
+const OrnamentTop = styled.img` width: 100%; margin-bottom: -10px; `;
+
 const ResultHeader = styled.div` text-align: center; margin-bottom: 25px; `;
-const ZodiacBadge = styled.span` background: ${props => props.color}; color: white; padding: 5px 16px; border-radius: 50px; font-size: 13px; font-weight: bold; `;
-const ResultTitle = styled.h2` font-size: 20px; color: #1a2a44; margin-top: 12px; `;
-const MainCard = styled.div` background: #fffcf5; border: 1px solid #dcd7c9; padding: 35px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); `;
-const ZodiacImageBox = styled.div` width: 140px; height: 140px; margin: 0 auto 30px; background: #fff; border-radius: 50%; border: 2px double #dcd7c9; display: flex; align-items: center; justify-content: center; `;
-const ZodiacImg = styled.img` width: 85%; object-fit: contain; `;
-const SectionTitleBox = styled.h3` font-size: 14px; color: #a64037; margin-bottom: 12px; border-left: 3px solid #a64037; padding-left: 8px; text-align: left; `;
-const SummaryText = styled.p` font-size: 17px; line-height: 1.8; color: #222; text-align: left; font-weight: 500; `;
-const Divider = styled.div` height: 1px; background: #dcd7c9; margin: 25px 0; opacity: 0.6; `;
-const LuckGrid = styled.div` display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 25px; `;
-const LuckItem = styled.div` text-align: center; background: #fff; padding: 12px 5px; border: 1px solid #f0ede3; `;
-const LuckLabel = styled.span` font-size: 11px; color: #888; display: block; margin-bottom: 5px; `;
-const Stars = styled.div` color: ${props => props.color}; font-size: 12px; `;
-const DetailBox = styled.div` text-align: left; padding: 20px; background: white; border: 1px solid #f0ede3; margin-top: 25px; `;
-const DetailText = styled.p` font-size: 15px; color: #555; line-height: 1.7; margin: 0; `;
-const SecretCard = styled.div` margin-top: 25px; background: #1a2a44; padding: 25px 20px; color: white; text-align: left; `;
-const SecretTitle = styled.h4` color: #d4af37; margin: 0 0 10px; font-size: 15px; `;
-const SecretText = styled.p` margin: 0; font-size: 14px; opacity: 0.9; line-height: 1.7; `;
+const ZodiacBadge = styled.span`
+  color: white;
+  padding: 4px 12px;
+  border-radius: 5px;
+  font-weight: bold;
+  font-size: 0.9rem;
+`;
+const ResultTitle = styled.h2` font-size: 1.4rem; margin-top: 15px; color: #2c2c2c; `;
+const AgeHighlight = styled.span` color: ${props => props.color || '#a64037'}; font-weight: bold; `;
 
-/* Affiliate Section Styles */
-const AffiliateSection = styled.div` margin-top: 30px; border: 2px solid #a64037; background: #fff; padding: 20px; animation: ${pulse} 2s infinite; `;
-const AffiliateHeader = styled.div` margin-bottom: 15px; border-bottom: 1px solid #f0ede3; padding-bottom: 10px; text-align: left; `;
-const AffiliateLabel = styled.span` font-size: 10px; color: white; background: #a64037; padding: 2px 6px; border-radius: 2px; font-weight: bold; `;
-const AffiliateTitle = styled.h4` font-size: 16px; color: #1a2a44; margin: 5px 0 0; `;
-const ItemBox = styled.div` display: flex; gap: 15px; align-items: center; `;
-const ItemImage = styled.img` width: 100px; height: 100px; object-fit: cover; border: 1px solid #eee; `;
-const ItemInfo = styled.div` flex: 1; text-align: left; `;
-const ItemName = styled.div` font-size: 15px; font-weight: bold; color: #333; margin-bottom: 5px; `;
-const ItemReason = styled.div` font-size: 12px; color: #666; line-height: 1.4; margin-bottom: 10px; `;
-const BuyButton = styled.button` background: #a64037; color: white; border: none; padding: 8px 15px; font-size: 12px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.3s; &:hover { background: #1a2a44; } `;
+const MainCard = styled.div`
+  background: white;
+  border-radius: 0 0 20px 20px;
+  padding: 30px 20px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+`;
 
-const ButtonGroup = styled.div` display: flex; flex-direction: column; gap: 12px; margin-top: 30px; width: 100%; `;
-const ShareButton = styled.button` width: 100%; background: #1a2a44; color: white; border: none; padding: 18px; font-size: 17px; font-weight: bold; cursor: pointer; `;
-const RestartButton = styled.button` width: 100%; background: white; color: #666; border: 1px solid #dcd7c9; padding: 16px; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; &:hover { color: #a64037; border-color: #a64037; } &::before { content: '↺'; margin-right: 8px; font-size: 18px; } `;
-const FooterText = styled.p` font-size: 12px; color: #999; margin: 30px 0; text-align: center; `;
+const ZodiacImageBox = styled.div` text-align: center; margin-bottom: 20px; `;
+const ZodiacImg = styled.img` width: 140px; height: 140px; object-fit: contain; `;
+
+const SectionTitleBox = styled.div`
+  font-weight: bold;
+  color: ${props => props.color || '#a64037'};
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+  text-align: center;
+`;
+
+const SummaryText = styled.p` line-height: 1.7; color: #444; text-align: center; font-size: 1.05rem; `;
+
+const Divider = styled.div` height: 1px; background: #eee; margin: 25px 0; `;
+
+const LuckGrid = styled.div` display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 30px; `;
+const LuckItem = styled.div` text-align: center; background: #fdfdfd; padding: 10px; border-radius: 10px; `;
+const LuckLabel = styled.div` font-size: 0.85rem; color: #888; margin-bottom: 5px; `;
+const Stars = styled.div` color: ${props => props.color}; font-size: 0.9rem; `;
+
+const DetailBox = styled.div` margin-bottom: 30px; `;
+const DetailText = styled.p` line-height: 1.8; color: #555; background: #f9f9f9; padding: 15px; border-radius: 10px; font-size: 0.95rem; `;
+
+const SecretCard = styled.div`
+  background: #fff9f8;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+`;
+const SecretTitle = styled.div` font-weight: bold; color: ${props => props.color}; margin-bottom: 10px; `;
+const SecretText = styled.p` color: #555; line-height: 1.6; font-size: 0.95rem; margin: 0; `;
+
+const AffiliateSection = styled.div` margin-top: 40px; `;
+const AffiliateHeader = styled.div` margin-bottom: 15px; `;
+const AffiliateLabel = styled.span` color: white; padding: 2px 8px; font-size: 0.75rem; border-radius: 3px; `;
+const AffiliateTitle = styled.h3` font-size: 1.1rem; margin-top: 8px; `;
+
+const ItemBox = styled.div` display: flex; gap: 15px; align-items: center; background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 15px; `;
+const ItemImage = styled.img` width: 80px; height: 80px; border-radius: 10px; object-fit: cover; `;
+const ItemInfo = styled.div` flex: 1; `;
+const ItemName = styled.div` font-weight: bold; margin-bottom: 5px; `;
+const ItemReason = styled.div` font-size: 0.8rem; color: #777; margin-bottom: 10px; line-height: 1.4; `;
+const BuyButton = styled.button` color: white; border: none; padding: 8px 15px; border-radius: 5px; font-size: 0.85rem; cursor: pointer; `;
+
+const ButtonGroup = styled.div` display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 30px; `;
+const ShareButton = styled.button` background: #3b5998; color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; `;
+const RestartButton = styled.button` background: #fff; color: #333; border: 1px solid #ddd; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; `;
+
+const FooterText = styled.p` text-align: center; color: #999; font-size: 0.8rem; margin-top: 30px; `;
+
+const SoundToggle = styled.button`
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(255,255,255,0.8);
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  z-index: 100;
+`;
 
 export default App;
