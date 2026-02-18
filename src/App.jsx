@@ -61,7 +61,8 @@ const App = () => {
      * [최적화 로직 1] 연도별 정밀 매칭 함수
      */
     const getDetailedResult = (year) => {
-        const zodiacIndex = year % 12;
+        let zodiacIndex = (year - 4) % 12;
+        if (zodiacIndex < 0) zodiacIndex += 12;
         const baseData = zodiacData[zodiacIndex];
         const yearlyDetail = baseData.yearly && baseData.yearly[year];
 
