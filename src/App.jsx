@@ -32,6 +32,16 @@ const pulse = keyframes`
   100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(166, 64, 55, 0); }
 `;
 
+const DisclaimerText = styled.p`
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+  margin-top: 15px;
+  line-height: 1.4;
+  word-break: keep-all;
+  opacity: 0.8; // 너무 진하지 않게 약간 투명도 조절
+`;
+
 /* --- Main App Component --- */
 const App = () => {
     const [step, setStep] = useState('intro');
@@ -254,6 +264,11 @@ const ResultPage = ({ data, index, birth }) => {
                             </BuyButton>
                         </ItemInfo>
                     </ItemBox>
+
+                    {/* 깔끔하게 스타일 컴포넌트로 교체 */}
+                    <DisclaimerText>
+                        ※ 파트너스 활동의 일환으로, 구매 시 소정의 수수료를 제공받을 수 있습니다.
+                    </DisclaimerText>
                 </AffiliateSection>
             </MainCard>
 
